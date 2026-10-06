@@ -85,9 +85,15 @@ also legal when clean turns out to be dumb.
   (b) `pacman-key` gpg entropy under proot; (c) whether UserLAnd's proot
   needs a separate loader vs the embedded one (`PROOT_TMP_DIR` is set for
   it either way).
-- Terminal: embed a terminal emulator view. Candidates: Termux's
-  `terminal-view`/`terminal-emulator` libraries (GPL, battle-tested) vs
-  writing one (don't).
+- Terminal: embed a terminal emulator view. **Decided: vendor Termux's
+  `terminal-view` + `terminal-emulator`** (GPL-3.0, tag v0.118.3) as source
+  under `app/src/main/java/com/termux/` plus the PTY JNI (`libtermux.so`,
+  built via ndkBuild from `app/src/main/jni/`). They depend only on
+  `androidx.annotation` - no `termux-shared` bloat. Provenance + license in
+  `third_party/termux/`. We do NOT use Termux's shell stack: `TerminalView`
+  drives a `TerminalSession` whose child is our bundled proot (the session's
+  JNI fork+execs it on a real PTY), and proot runs bash inside the rootfs.
+  See `TerminalActivity`.
 - UX bar: zero terminal commands between "Install" tap and a working
   `pacman -Syu`.
 
@@ -131,8 +137,14 @@ also legal when clean turns out to be dumb.
    (bionic PIE + libtalloc); DroidDeck's build is the reference once we
    need their patches or a cleaner static binary.
 3. Rootfs delta updates vs plain `pacman -Syu` (probably just pacman).
-4. Whether Termux's terminal-view can be consumed as a library without
-   dragging in the rest of Termux.
+4. ~~Whether Termux's terminal-view can be consumed as a library without
+   dragging in the rest of Termux.~~ ANSWERED: yes. `terminal-view` +
+   `terminal-emulator` depend only on `androidx.annotation` (termux-shared
+   depends on *them*, not the reverse). JitPack publishes them
+   (`com.termux:terminal-view:0.118.0`) but is flaky and unpatchable, so we
+   vendored the source at tag v0.118.3 instead. `TerminalSession` spawns its
+   own child via a small PTY JNI (`libtermux.so`), so we pass it the proot
+   path as the "shell" rather than a java.lang.Process.
 
 ## Test devices in the fleet
 

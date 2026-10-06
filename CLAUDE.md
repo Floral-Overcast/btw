@@ -19,8 +19,10 @@ but the first one that is actually nice to use. UX polish IS the product.
 - Kotlin, single-module Android app, Gradle.
 - `minSdk 28`, **`targetSdk 28`** - deliberate, do not bump. Targeting 29+
   blocks exec() of downloaded binaries from app data (the Termux wall).
-- Native bits: static aarch64 `proot` bundled in `jniLibs` (ships inside
-  the APK so exec-from-native-lib-dir stays legal on newer Android).
+- Native bits: aarch64 `proot` bundled in `jniLibs` (ships inside the APK
+  so exec-from-native-lib-dir stays legal on newer Android). Plus
+  `libtermux.so`, the PTY JNI, built via ndkBuild from vendored Termux C
+  (`app/src/main/jni/`); needs the NDK (`ndk;26.1.10909125`).
 - Rootfs: official Arch Linux ARM aarch64 tarball, downloaded on first
   run from mirrors, checksum-verified, extracted to app-private storage.
   Never bundled in the APK, never committed to git.
@@ -37,11 +39,15 @@ CT is active; dispatch to the CT instead.
 - `docs/architecture.md` - the plan, layer by layer, with the open
   research questions. Keep it current when decisions change.
 - `app/` - Android app (created by the worker; standard Gradle layout).
+  `app/src/main/java/com/termux/` + `app/src/main/jni/` are vendored Termux
+  terminal code (GPL-3.0); don't hand-edit except to re-point resource
+  imports. Provenance in `third_party/termux/`.
 
 ## Build / run
 
-Worker CT owns builds (headless Gradle + Android cmdline-tools). From the
-host: brief and dispatch, don't hand-edit here. Smoke test = APK installs
+Worker CT owns builds (headless Gradle + Android cmdline-tools + NDK
+`26.1.10909125` for the PTY JNI). From the host: brief and dispatch, don't
+hand-edit here. Smoke test = APK installs
 and reaches a pacman-capable shell on a real device (Thor or a Snapdragon
 phone over adb).
 

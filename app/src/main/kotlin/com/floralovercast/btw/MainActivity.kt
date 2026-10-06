@@ -1,5 +1,6 @@
 package com.floralovercast.btw
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
@@ -17,7 +18,27 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         binding.subtitle.text = Bootstrap.preflight(this)
-        binding.installButton.setOnClickListener { startInstall() }
+        refreshButton()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshButton()
+    }
+
+    /** Install when there's no rootfs yet, otherwise open the terminal. */
+    private fun refreshButton() {
+        if (Bootstrap.isInstalled(this)) {
+            binding.installButton.setText(R.string.open_terminal)
+            binding.installButton.setOnClickListener { openTerminal() }
+        } else {
+            binding.installButton.setText(R.string.install)
+            binding.installButton.setOnClickListener { startInstall() }
+        }
+    }
+
+    private fun openTerminal() {
+        startActivity(Intent(this, TerminalActivity::class.java))
     }
 
     /**
@@ -78,6 +99,7 @@ class MainActivity : AppCompatActivity() {
                 binding.progress.visibility = View.GONE
                 binding.subtitle.text = getString(R.string.phase_done)
                 binding.installButton.isEnabled = true
+                refreshButton() // flip Install -> Open terminal
             }
         }
     }

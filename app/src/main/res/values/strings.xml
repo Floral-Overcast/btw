@@ -3,6 +3,7 @@
     <string name="app_name">btw</string>
     <string name="tagline">Arch Linux on Android</string>
     <string name="install">Install</string>
+    <string name="open_terminal">Open terminal</string>
 
     <string name="already_installed">Arch Linux is already installed.</string>
     <string name="phase_check">Checking proot</string>

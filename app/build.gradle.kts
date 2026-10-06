@@ -6,6 +6,9 @@ plugins {
 android {
     namespace = "com.floralovercast.btw"
     compileSdk = 34
+    // Builds libtermux.so (PTY JNI) from the vendored Termux terminal-emulator
+    // jni; see app/src/main/jni and third_party/termux/README.md.
+    ndkVersion = "26.1.10909125"
 
     defaultConfig {
         applicationId = "com.floralovercast.btw"
@@ -15,6 +18,16 @@ android {
         targetSdk = 28
         versionCode = 1
         versionName = "0.1.0"
+        ndk {
+            // Single ABI: the bundled proot is aarch64-only (jniLibs).
+            abiFilters += "arm64-v8a"
+        }
+    }
+
+    externalNativeBuild {
+        ndkBuild {
+            path = file("src/main/jni/Android.mk")
+        }
     }
 
     buildTypes {

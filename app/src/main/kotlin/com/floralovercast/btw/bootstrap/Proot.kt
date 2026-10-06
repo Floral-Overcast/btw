@@ -67,21 +67,45 @@ object Proot {
         )
 
     /**
+     * The common proot prefix for running something inside [rootfs] as fake
+     * root: argv[0]=proot, new root, uid 0, /root as cwd, and the kernel
+     * filesystems the guest expects bound in (host paths proot maps in).
+     */
+    private fun guestPrefix(context: Context, rootfs: File): MutableList<String> =
+        mutableListOf(
+            prootPath(context),
+            "-r", rootfs.absolutePath,
+            "-0",
+            "-w", "/root",
+            "-b", "/dev",
+            "-b", "/proc",
+            "-b", "/sys",
+        )
+
+    /**
      * argv to run [scriptPath] (a guest-absolute path, e.g. /tmp/x.sh) with
-     * /bin/sh inside [rootfs] as fake root. Binds the kernel filesystems the
-     * guest expects; these are host paths proot maps into the guest.
+     * /bin/sh inside [rootfs] as fake root.
      */
     fun shellScriptCommand(context: Context, rootfs: File, scriptPath: String): List<String> =
-        buildList {
-            add(prootPath(context))
-            add("-r"); add(rootfs.absolutePath)
-            add("-0")
-            add("-w"); add("/root")
-            add("-b"); add("/dev")
-            add("-b"); add("/proc")
-            add("-b"); add("/sys")
+        guestPrefix(context, rootfs).apply {
             add("/bin/sh"); add(scriptPath)
         }
+
+    /**
+     * argv for an interactive login shell inside [rootfs] (what the terminal
+     * spawns). `-l` so bash reads /etc/profile and the PATH/locale we set up.
+     */
+    fun loginShellArgv(context: Context, rootfs: File): List<String> =
+        guestPrefix(context, rootfs).apply {
+            add("/bin/bash"); add("-l")
+        }
+
+    /** Absolute path of the proot binary (for TerminalSession's shellPath). */
+    fun binaryPath(context: Context): String = prootPath(context)
+
+    /** [env] as a "KEY=value" array (what the PTY JNI's createSubprocess wants). */
+    fun envArray(context: Context): Array<String> =
+        env(context).map { (k, v) -> "$k=$v" }.toTypedArray()
 
     /** Default env for a proot invocation. */
     fun env(context: Context): Map<String, String> = mapOf(
