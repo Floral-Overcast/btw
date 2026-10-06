@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">btw</string>
+    <string name="tagline">Arch Linux on Android</string>
+    <string name="install">Install</string>
+    <string name="install_pending">Not wired up yet</string>
+</resources>
