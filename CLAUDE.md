@@ -25,6 +25,13 @@ but the first one that is actually nice to use. UX polish IS the product.
   run from mirrors, checksum-verified, extracted to app-private storage.
   Never bundled in the APK, never committed to git.
 
+## Where dev happens
+
+Active feature work runs in worker CT `btw` (CT229 on Seolla), which
+pushes to `main`. The cloud Claude Space checkout only mirrors
+`origin/main`. Don't build features from the cloud checkout while the
+CT is active; dispatch to the CT instead.
+
 ## Repo layout
 
 - `docs/architecture.md` - the plan, layer by layer, with the open
