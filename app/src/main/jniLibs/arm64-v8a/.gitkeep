@@ -1,0 +1,2 @@
+# Keeps the arm64-v8a dir in git. Real binaries land here via
+# scripts/fetch-proot.sh and are gitignored. See ../README.md.

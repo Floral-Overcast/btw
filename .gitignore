@@ -17,7 +17,9 @@ captures/
 *.tar.xz
 *.tar.gz
 rootfs/
-jniLibs/**/*.so
+# jniLibs lives at app/src/main/jniLibs; match at any depth so the
+# fetched proot/libtalloc binaries never get committed.
+**/jniLibs/**/*.so
 
 # OS noise
 .DS_Store

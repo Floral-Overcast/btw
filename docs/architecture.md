@@ -20,7 +20,17 @@ also legal when clean turns out to be dumb.
 
 ## Layer 1 - v0.1 terminal MVP
 
-- APK bundles a static aarch64 `proot` in jniLibs (exec-legal location).
+- APK bundles an aarch64 `proot` in jniLibs (exec-legal location). "Static"
+  turned out to be aspirational: the pragmatic GPL source (UserLAnd's
+  prebuilt `assets/arm64/proot`) is an NDK r18 aarch64 PIE that links
+  against bionic plus one extra lib, `libtalloc.so.2`. Two consequences,
+  both handled by `scripts/fetch-proot.sh` + `jniLibs/README.md`: the APK
+  packager only ships `*.so`, so proot is renamed `libproot.so` and
+  libtalloc's `DT_NEEDED` is patchelf'd from `libtalloc.so.2` to the
+  packaged `libtalloc.so`; and `extractNativeLibs`/legacy packaging must be
+  on so both get unpacked to `nativeLibraryDir` and stay exec'able. A fully
+  static proot (no libtalloc) would drop the patchelf step; revisit if the
+  bionic build bites us.
 - First run: pick mirror -> download Arch Linux ARM aarch64 tarball ->
   verify checksum -> extract to app-private storage (proot handles the
   no-root ownership problem).
@@ -68,6 +78,9 @@ also legal when clean turns out to be dumb.
 1. How they structure the compositor (wlroots-derived? custom?) and how
    input/IME is bridged - read before writing ours.
 2. Their proot fork/patches, if any (phantom-killer and seccomp fixes).
+   Partial answer: we currently bundle UserLAnd's prebuilt aarch64 proot
+   (bionic PIE + libtalloc); DroidDeck's build is the reference once we
+   need their patches or a cleaner static binary.
 3. Rootfs delta updates vs plain `pacman -Syu` (probably just pacman).
 4. Whether Termux's terminal-view can be consumed as a library without
    dragging in the rest of Termux.

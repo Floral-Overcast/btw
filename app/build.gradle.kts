@@ -39,6 +39,12 @@ android {
     buildFeatures {
         viewBinding = true
     }
+
+    packaging {
+        // extractNativeLibs=true (manifest) needs legacy packaging: proot
+        // must be unpacked to nativeLibraryDir on install to be exec'able.
+        jniLibs.useLegacyPackaging = true
+    }
 }
 
 dependencies {

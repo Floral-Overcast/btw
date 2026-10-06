@@ -2,6 +2,7 @@ package com.floralovercast.btw
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import com.floralovercast.btw.bootstrap.Bootstrap
 import com.floralovercast.btw.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
@@ -13,11 +14,11 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Placeholder. Layer 1 wires this to the bootstrap flow:
-        // download Arch Linux ARM rootfs, verify, extract, open a shell.
+        // Layer 1 groundwork: Install runs the bootstrap preflight, which
+        // checks the bundled proot without pulling the ~800 MB rootfs. The
+        // full download/verify/extract/setup flow lands next (Bootstrap).
         binding.installButton.setOnClickListener {
-            binding.installButton.isEnabled = false
-            binding.installButton.text = getString(R.string.install_pending)
+            binding.subtitle.text = Bootstrap.preflight(this)
         }
     }
 }
