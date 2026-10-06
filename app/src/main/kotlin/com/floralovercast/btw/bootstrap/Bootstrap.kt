@@ -1,16 +1,19 @@
 package com.floralovercast.btw.bootstrap
 
 import android.content.Context
+import com.floralovercast.btw.R
 import java.io.File
 
 /**
  * Layer 1 bootstrap flow (docs/architecture.md): download the Arch Linux
- * ARM rootfs, verify it, extract it, run first-time setup, then we have a
- * shell. This is the groundwork skeleton - the phases are wired in order
- * and the download/verify helpers are real, but extract + setup are TODO
- * (they need the bundled proot, which fetch-proot.sh supplies; see
- * jniLibs/README.md). Nothing here is called from the UI yet beyond
- * [preflight].
+ * ARM rootfs, verify it, extract it through proot, run first-run setup,
+ * then we have a shell. Blocking end to end - call [install] off the main
+ * thread (MainActivity does). Progress is reported via [Phase] callbacks;
+ * a full log is appended to filesDir/bootstrap.log for on-device debugging.
+ *
+ * UNVERIFIED on aarch64: the build host is x86-64 and cannot run proot or
+ * the rootfs. The extract/setup argv is reasoned from proot-distro/UserLAnd;
+ * the on-device smoke test is the real check.
  */
 object Bootstrap {
 
@@ -28,40 +31,47 @@ object Bootstrap {
     private fun tarball(context: Context): File =
         File(context.cacheDir, RootfsSource.TARBALL_NAME)
 
+    private fun logFile(context: Context): File =
+        File(context.filesDir, "bootstrap.log")
+
     /** True once a rootfs has been extracted (cheap check: /bin exists). */
     fun isInstalled(context: Context): Boolean =
-        File(rootfsDir(context), "bin").isDirectory
+        File(rootfsDir(context), "bin").exists()
 
-    /**
-     * A one-line status for the Install button to show today, before the
-     * full flow is wired. Proves the native-lib plumbing end to end without
-     * pulling the ~800 MB tarball.
-     */
+    /** A one-line status for the UI before/without running the full flow. */
     fun preflight(context: Context): String = when {
         isInstalled(context) -> "Rootfs already installed."
         !Proot.isBundled(context) ->
-            "proot not bundled yet - run scripts/fetch-proot.sh and rebuild."
-        else -> "proot ready. Rootfs download not wired up yet."
+            "proot not bundled - run scripts/fetch-proot.sh and rebuild."
+        else -> "Ready to install."
     }
 
     /**
-     * The full flow, phase by phase. Not invoked from the UI yet; it will
-     * run on a background thread once extract + setup land.
+     * The full flow, phase by phase. Blocking; run on a background thread.
+     * Throws on any hard failure (no proot, all mirrors down, checksum
+     * mismatch, extract failure). First-run setup is best-effort: a nonzero
+     * exit is logged but doesn't fail the install, since the extracted shell
+     * is still usable.
      */
     fun install(context: Context, onPhase: (Phase) -> Unit) {
+        logFile(context).writeText("")
+        logFile(context).appendText("btw bootstrap start\n")
+
         onPhase(Phase.CheckProot)
         check(Proot.isBundled(context)) {
             "proot not bundled; run scripts/fetch-proot.sh"
         }
 
         val tar = tarball(context)
-        Downloader.download(RootfsSource.TARBALL_URL, tar) { soFar, total ->
-            onPhase(Phase.Download(soFar, total))
-        }
+        onPhase(Phase.Download(0, -1))
+        val mirror = Downloader.downloadFromFirst(
+            RootfsSource.MIRRORS, RootfsSource::tarballUrl, tar
+        ) { soFar, total -> onPhase(Phase.Download(soFar, total)) }
+        log(context, "downloaded from $mirror")
 
         onPhase(Phase.Verify)
         val expected = Checksum.parseExpected(
-            Downloader.fetchText(RootfsSource.CHECKSUM_URL)
+            Downloader.fetchText(RootfsSource.checksumUrl(mirror))
         )
         val actual = Checksum.md5(tar)
         check(actual == expected) {
@@ -74,24 +84,52 @@ object Bootstrap {
         onPhase(Phase.Setup)
         setup(context)
 
+        tar.delete() // reclaim ~800 MB; rootfs is extracted now
+        log(context, "bootstrap done")
         onPhase(Phase.Done)
     }
 
     /**
-     * TODO(layer1): extract the tar.gz into rootfsDir. Needs ownership and
-     * symlinks preserved, which stock Android tar can't do unrooted - run
-     * `tar` inside the rootfs through proot, the proot-distro way. Blocked
-     * on the bundled proot (fetch-proot.sh) and on resolving the libtalloc
-     * soname gotcha (jniLibs/README.md).
+     * Extract the tarball into rootfsDir by running host tar through proot
+     * (fake root + link2symlink). See Proot.extractCommand for why.
      */
-    private fun extract(context: Context, tarball: File): Unit =
-        TODO("extract rootfs via proot - see docs/architecture.md layer 1")
+    private fun extract(context: Context, tarball: File) {
+        val dest = rootfsDir(context).apply { mkdirs() }
+        val code = Proot.run(
+            context, Proot.extractCommand(context, tarball, dest)
+        ) { log(context, "tar: $it") }
+        check(code == 0) { "extract failed: tar exited $code (see bootstrap.log)" }
+        check(isInstalled(context)) { "extract produced no /bin (see bootstrap.log)" }
+    }
 
     /**
-     * TODO(layer1): first-run setup scripted through proot - pacman keyring
-     * init, locale, a default user, resolv.conf. Zero terminal commands
-     * between Install and a working `pacman -Syu`.
+     * First-run setup scripted through proot: resolv.conf, locale, pacman
+     * keyring, a default user. Zero terminal commands between Install and a
+     * working `pacman -Syu`. Best-effort (see [install]).
      */
-    private fun setup(context: Context): Unit =
-        TODO("post-extract setup via proot - see docs/architecture.md layer 1")
+    private fun setup(context: Context) {
+        val rootfs = rootfsDir(context)
+
+        // DNS from the host side: the guest's resolver reads this file.
+        File(rootfs, "etc").mkdirs()
+        File(rootfs, "etc/resolv.conf")
+            .writeText("nameserver 1.1.1.1\nnameserver 8.8.8.8\n")
+
+        val script = context.resources.openRawResource(R.raw.first_run_setup)
+            .bufferedReader().use { it.readText() }
+        val tmp = File(rootfs, "tmp").apply { mkdirs() }
+        File(tmp, "btw-first-run.sh").writeText(script)
+
+        val code = Proot.run(
+            context,
+            Proot.shellScriptCommand(context, rootfs, "/tmp/btw-first-run.sh"),
+        ) { log(context, "setup: $it") }
+        if (code != 0) {
+            log(context, "first-run setup exited $code (shell still usable)")
+        }
+    }
+
+    private fun log(context: Context, line: String) {
+        logFile(context).appendText("$line\n")
+    }
 }

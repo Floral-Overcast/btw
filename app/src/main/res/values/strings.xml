@@ -3,4 +3,14 @@
     <string name="app_name">btw</string>
     <string name="tagline">Arch Linux on Android</string>
     <string name="install">Install</string>
+
+    <string name="already_installed">Arch Linux is already installed.</string>
+    <string name="phase_check">Checking proot</string>
+    <string name="phase_download">Downloading rootfs</string>
+    <string name="phase_download_pct">Downloading rootfs: %1$d%% of %2$d MB</string>
+    <string name="phase_verify">Verifying download</string>
+    <string name="phase_extract">Extracting rootfs</string>
+    <string name="phase_setup">First-run setup, this can take a minute</string>
+    <string name="phase_done">Done. Arch Linux is installed.</string>
+    <string name="phase_failed">Install failed: %1$s</string>
 </resources>
