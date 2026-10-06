@@ -1,0 +1,24 @@
+# Android / Gradle
+.gradle/
+build/
+app/build/
+local.properties
+*.apk
+*.aab
+*.keystore
+captures/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Native / rootfs artifacts (never commit these)
+*.tar.xz
+*.tar.gz
+rootfs/
+jniLibs/**/*.so
+
+# OS noise
+.DS_Store
+Thumbs.db
