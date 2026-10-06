@@ -2,6 +2,7 @@ package com.floralovercast.btw
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import com.floralovercast.btw.bootstrap.Bootstrap
@@ -12,6 +13,9 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
 
+    /** Suppresses repeat log lines from the many Download progress ticks. */
+    private var lastPhaseLogged: String? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -19,6 +23,13 @@ class MainActivity : AppCompatActivity() {
 
         binding.subtitle.text = Bootstrap.preflight(this)
         refreshButton()
+
+        // Debug hook for the hands-free adb smoke test: start the install
+        // without a tap. `am start ... --ez auto_install true`.
+        if (intent.getBooleanExtra(EXTRA_AUTO_INSTALL, false)) {
+            Log.i(TAG, "auto_install extra set; starting install")
+            startInstall()
+        }
     }
 
     override fun onResume() {
@@ -50,9 +61,11 @@ class MainActivity : AppCompatActivity() {
      */
     private fun startInstall() {
         if (Bootstrap.isInstalled(this)) {
+            Log.i(TAG, "already installed; nothing to do")
             binding.subtitle.text = getString(R.string.already_installed)
             return
         }
+        Log.i(TAG, "install started")
         binding.installButton.isEnabled = false
         binding.progress.visibility = View.VISIBLE
         binding.progress.isIndeterminate = true
@@ -67,6 +80,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun render(phase: Bootstrap.Phase) {
+        logPhase(phase)
         when (phase) {
             is Bootstrap.Phase.CheckProot ->
                 binding.subtitle.text = getString(R.string.phase_check)
@@ -105,10 +119,42 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun fail(e: Exception) {
+        Log.e(TAG, "install failed: ${e.message}", e)
         binding.progress.visibility = View.GONE
         binding.installButton.isEnabled = true
         binding.subtitle.text = getString(R.string.phase_failed, e.message ?: "unknown error")
     }
 
+    /**
+     * One logcat line per phase transition under a single tag so an adb-driven
+     * smoke test can follow progress hands-free. Download ticks many times;
+     * collapse them to the first and last line.
+     */
+    private fun logPhase(phase: Bootstrap.Phase) {
+        val line = when (phase) {
+            is Bootstrap.Phase.CheckProot -> "phase: check proot"
+            is Bootstrap.Phase.Download ->
+                if (phase.total > 0 && phase.soFar >= phase.total)
+                    "phase: download complete (${mb(phase.total)} MB)"
+                else "phase: download"
+            is Bootstrap.Phase.Verify -> "phase: verify checksum"
+            is Bootstrap.Phase.Extract -> "phase: extract"
+            is Bootstrap.Phase.Setup -> "phase: first-run setup"
+            is Bootstrap.Phase.Done -> "phase: done"
+        }
+        if (line != lastPhaseLogged) {
+            Log.i(TAG, line)
+            lastPhaseLogged = line
+        }
+    }
+
     private fun mb(bytes: Long): Int = (bytes / (1024 * 1024)).toInt()
+
+    companion object {
+        /** Single logcat tag for the whole bootstrap flow; `adb logcat -s BTW`. */
+        const val TAG = "BTW"
+
+        /** `am start ... --ez auto_install true` to drive install without a tap. */
+        const val EXTRA_AUTO_INSTALL = "auto_install"
+    }
 }

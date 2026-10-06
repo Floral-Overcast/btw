@@ -17,7 +17,7 @@ android {
         // downloaded binaries from app data. See CLAUDE.md / architecture.md.
         targetSdk = 28
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "0.1.0-alpha1"
         ndk {
             // Single ABI: the bundled proot is aarch64-only (jniLibs).
             abiFilters += "arm64-v8a"
